@@ -3,6 +3,7 @@
 
 import smbus
 import time
+import math
 import cv2
 assert cv2.__version__[0] == '3', 'The program requires OpenCV version greater than >= 3.0.0'
 import numpy as np
@@ -42,13 +43,13 @@ def dist(a,b):
 
 # Angle of Y axis, pitch
 def get_y_rotation(x,y,z):
-    radians = np.atan2(x, dist(y,z))
-    return -np.degrees(radians)
+    radians = math.atan2(x, dist(y,z))
+    return -math.degrees(radians)
 
 # Angle of X axis, roll
 def get_x_rotation(x,y,z):
-    radians = np.atan2(y, dist(x,z))
-    return np.degrees(radians)
+    radians = math.atan2(y, dist(x,z))
+    return math.degrees(radians)
 
 ###########################################
 #CAMERA FUNCTIONS
