@@ -27,8 +27,8 @@ import datetime
 import time
 
 import cv2
-assert cv2.__version__[0] == '3', 'The program requires OpenCV version greater than >= 3.0.0'
-
+assert cv2.__version__[0] >= '3', 'The program requires OpenCV version greater than >= 3.0.0'
+from cv2 import aruco
 import numpy as np
 from colorama import Fore, Style
 from skimage.measure import block_reduce as pooling
@@ -62,7 +62,12 @@ class ImageProcess():
                                             getCameraFPS                                           
                                             calibrateParameters
                                             readParameters
+                                            writeParameters
                                             setParameters
+                                            initiateAruco
+                                            initiateUndistortMap
+                                            detectAruco
+                                            
 
 
 
@@ -117,17 +122,19 @@ class ImageProcess():
                  crop_topPixel=0,
                  crop_bottomPixel=0,
                  crop_leftPixel=0,
-                 crop_rightPixel=0):
+                 crop_rightPixel=0,
+                 file_ID = 'D:\\FordOtosan\\'):
 
         self._version ='0.1'
         self._author ='Kazım Yüksel <kazim.yuksel95@gmail.com>'
         self._cv2version = cv2.__version__
         
-        self.projectFile = 'D:\FordOtosan'
+        self.projectFile = 'D:\\FordOtosan\\'
         self.isFileExist = False
         self.isFileExist = os.path.exists(self.projectFile)
         if self.isFileExist is False:
             raise ValueError('A file with name: '+self.projectFile+' should exist.')
+        self.calibrationFile = 'IMAGE_PROCESS_PARAMETERS.driveME'
         
         self.gaussianBlur_kernelSize = gaussianBlur_kernelSize
         self.poolDimension = poolDimension
@@ -141,19 +148,29 @@ class ImageProcess():
         self.CameraDIM = (640,480)#None
         self.CameraFPS = None
         self.CAMERA_INDICES = None
+        self.ArucoHeadID = None
+        self.ArucoTrailerID = None
+        self.ArucoCalibrationID = None
         self._NUMBER_OF_CONNECTED_CAMERAS = None
         self._NUMBER_OF_FRAMES_FOR_EXTERNAL_CAMERA_DETECTION = 25
         self._EXTERNAL_CAMERA_INDEX_LIST_ = []
         self._ELEMINATION_THRESHOLD_ =  65
         
+        self.CALIBRATION_PARAMETERS = []
         self.CAMERA_LIST = []
         self.IMAGE_LIST = []
+        self.ARUCO_CALIBRATION_CORNERS = []
+        self.ARUCO_HEAD_CORNERS = []
+        self.ARUCO_TRAILER_CORNERS = []
         
         self.isCameraDetected = False
         self.isExternalCameraDetecred = False
         self.isCameraInitialized = False
         self.isCameraOpen = False
         self.isCameraReleased = False
+        self.isCameraDimSet = False
+        self.isCameraFpsSet = False
+        self.isCameraCalibrated = False
         self.isCameraMatrixSet = False
         self.isDistorsionCoefficientsSet = False
         
@@ -344,7 +361,6 @@ class ImageProcess():
         #del frame, camera_id, i, j, append_array, mean_append_array, mean_append_array_2
         return self._EXTERNAL_CAMERA_INDEX_LIST_
             
-        
     def initializeExternalCamera(self):
         isCameraOpen_list = []
         isImageCollected_list = []
@@ -383,7 +399,7 @@ class ImageProcess():
                     
                 camera_open_bool = self.CAMERA_LIST[index].isOpened()
                 isCameraOpen_list.append(camera_open_bool)
-                print('Is camera '+str(value+1)+' open: '+str(camera_open_bool))
+                print('Is camera '+str(value)+' open: '+str(camera_open_bool))
                 print('Checking if image can be captured with initialized camera...')
                 condition,_ = self.CAMERA_LIST[index].read()
                 isImageCollected_list.append(condition)
@@ -418,8 +434,6 @@ class ImageProcess():
             print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
             raise ValueError('self.CAMERA_LIST = None')
             return False
-        
-        
         
     def releaseExternalCamera(self):
         print('')
@@ -464,57 +478,176 @@ class ImageProcess():
         #This function will not print any value since it will slow system dramatically.
         
     def setCameraMatrix(self, CameraMatrix = None):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}setCameraMatrix(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
         if CameraMatrix is None:
             print('Error setting CameraMatrix. No Matrix supplied.')
+            print('')
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}') 
             return False
         else:
             self.CameraMatrix = CameraMatrix
+            print('')
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}') 
             return True
         
     def getCameraMatrix(self):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}getCameraMatrix(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
+        print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}') 
         return self.CameraMatrix
     
     def setDistorsionCoefficients(self, DistorsionCoefficients = None):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}setDistorsionCoefficients(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
         if DistorsionCoefficients is None:
             print('Error setting DistorsionCoefficients. No Matrix supplied.')
+            print('')
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}') 
             return False
         else:
             self.DistorsionCoefficients = DistorsionCoefficients
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}') 
             return True
         
     def getDistorsionCoefficients(self):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}getDistorsionCoefficients(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
+        print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
         return self.DistorsionCoefficients
 
     def setCameraDIM(self, DIM = None):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}setCameraDIM(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
         if DIM is None:
             print('Error setting CameraDIM. No Tuple supplied.')
+            print('')
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
             return False
         else:
             self.CameraDIM = DIM
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
             return True
         
     def getCameraDIM(self):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}getCameraDIM(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
+        print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
         return self.CameraDIM
     
     def setCameraFPS(self, FPS = None):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}setCameraFPS(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
         if FPS is None:
             print('Error setting CameraFPS. No int supplied.')
+            print('')
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
             return False
         else:
             self.CameraFPS = FPS
+            print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
             return True
         
     def getCameraFPS(self):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}getCameraFPS(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
+        print(f'{Fore.GREEN}#####################################################{Style.RESET_ALL}')
         return self.CameraFPS
     
-    def calibrateParameters(self):
-        pass
+    def calibrateParameters(self, readFromDocument = False, saveCalibrationDocument):
+        print('')
+        print(f'{Fore.BLUE}#####################################################{Style.RESET_ALL}')
+        print(f'{Fore.RED}calibrateParameters(){Style.RESET_ALL} -> Function is being {Fore.RED}executed{Style.RESET_ALL}!')
+        print('Start time of module execution: '+ str(datetime.datetime.now()))
+        print('')
+        calibrationPath = self.projectFile + self.calibrationFile
+        print('Calibration File Path: '+ calibrationPath)
+        print('Read From File?: '+ readFromDocument)
+        if readFromDocument is True:
+            print('Reading From File')
+            isCalibrationFileExist = os.path.exists(calibrationPath)
+            print('Calibration File Exist in given path?: '+isCalibrationFileExist)
+            if isCalibrationFileExist is True:
+                parametersList = self.readParameters()
+                for index,value in enumerate(parametersList):
+                    if value[1] is None:
+                        raise ValueError('Calibration File has NONETYPE in it. File is not fully-calibrated.')
+                self.CALIBRATION_PARAMETERS = parametersList
+                self.isCameraCalibrated = True
+            else:
+                raise ValueError('No Calibration File.')
+        else:
+            parametersList = []
+            parametersList.append(['Universally Unique Identifier', uuid.uuid4().hex])
+            parametersList.append(['Date and Time of Calibration', datetime.datetime.now()])
+            parametersList.append(['Running Folder ID',self.projectFile])
+            parametersList.append(['DIM', self.CameraDIM])
+            parametersList.append(['FPS', self.CameraFPS])
+            parametersList.append(['External Cameras Indices', self.CAMERA_INDICES])
+            parametersList.append(['Camera Matrix', self.CameraMatrix ])
+            parametersList.append(['Distorsion Coefficients', self.DistorsionCoefficients ])
+            parametersList.append(['ARUCO Calibration ID', ])
+            parametersList.append(['ARUCO Head ID', ])
+            parametersList.append(['ARUCO Trailer ID', ])
+            parametersList.append(['ARUCO GROUND LEVEL CALIBRATION CORNERS', None])
+            parametersList.append(['ARUCO TOP LEVEL CALIBRATION CORNERS', None])
+            parametersList.append(['Port Dimensions', (500,500)])
+            parametersList.append(['Pixel Per cm', 1])
     
     def readParameters(self):
+        calibrationPath = self.projectFile + self.calibrationFile
+        with open (calibrationPath, 'rb') as fp:
+            parametersList = pickle.load(fp)
+        return parametersList
+    
+    def writeParameters(self):
+        calibrationPath = self.projectFile + self.calibrationFile
+        with open('D:\FordOtosan\\PARAMETERS.driveME', 'wb') as fp:
+            pickle.dump(parametersList, fp)
+        return True
+    
+    def setParamters(self):
         pass
     
-    def setParameters(self):
+    def initiateAruco(self, CalibrationID = None, HeadID = None, TrailerID = None):
+        if (CalibrationID or HeadID or TrailerID) is None:
+            raise ValueError('ID inputs not supplied.')
+        self.ARUCO_DICT = aruco.Dictionary_get( aruco.DICT_6X6_1000 )
+        self.ARUCOPARAMS = aruco.DetectorParameters_create()
+        self.ArucoCalibrationID = CalibrationID
+        self.ArucoHeadID = HeadID
+        self.ArucoTrailerID = TrailerID
+    
+    def initiateUndistortMap(self):
         pass
+    
+    def detectAruco(self, ID = None):
+        if isCamerasClosed_bool is None:
+            raise ValueError('No Aruco ID supplied.')
 
     #Private functions to convert color from BGR colorspace
     def _bgr2gray(self,img_arr):
@@ -786,4 +919,5 @@ class ImageProcess():
     @property
     def __cv2version__(self):
         print(self._cv2version)
+
 
