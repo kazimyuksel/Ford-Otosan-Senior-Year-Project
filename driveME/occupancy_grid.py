@@ -23,6 +23,7 @@ def imgShow(img):
         cv2.destroyAllWindows()
 dim = 492
 store = redis.Redis(host="192.168.1.101",port=6379)
+store_occupancy = redis.Redis(host="192.168.1.101",port=6379)
 prev_image_id_1 = None
 prev_image_id_2 = None
 prev_image_id_3 = None
@@ -42,6 +43,7 @@ def getData(prev_image_id_1,prev_image_id_2,prev_image_id_3,prev_image_id_4, pre
     image = BytesIO(image)
     image = np.load(image)
     img_1 = cv2.imdecode(image, -1)
+    img_1 = cv2.resize(img_1,(dim,dim))
     image_id = None
     while True:
         time.sleep(1./MAX_FPS)
@@ -53,6 +55,7 @@ def getData(prev_image_id_1,prev_image_id_2,prev_image_id_3,prev_image_id_4, pre
     image = BytesIO(image)
     image = np.load(image)
     img_2 = cv2.imdecode(image, -1)
+    img_2 = cv2.resize(img_2,(dim,dim))
     image_id = None
     while True:
         time.sleep(1./MAX_FPS)
@@ -64,6 +67,7 @@ def getData(prev_image_id_1,prev_image_id_2,prev_image_id_3,prev_image_id_4, pre
     image = BytesIO(image)
     image = np.load(image)
     img_3 = cv2.imdecode(image, -1)
+    img_3 = cv2.resize(img_3,(dim,dim))
     image_id = None
     while True:
         time.sleep(1./MAX_FPS)
@@ -75,6 +79,7 @@ def getData(prev_image_id_1,prev_image_id_2,prev_image_id_3,prev_image_id_4, pre
     image = BytesIO(image)
     image = np.load(image)
     img_4 = cv2.imdecode(image, -1)
+    img_4 = cv2.resize(img_4,(dim,dim))
     
     position_data_id = None
     while True:
@@ -188,6 +193,7 @@ def createIntersectionMask(img_1,img_2,img_3,img_4):
 
 prev_image_id_1, prev_image_id_2, prev_image_id_3, prev_image_id_4, prev_data_id, img_1, img_2, img_3, img_4, headPos, trailerPos, headAngle, trailerAngle = getData(prev_image_id_1,prev_image_id_2,prev_image_id_3,prev_image_id_4, prev_data_id)
 mask124, mask12, mask123, mask23, mask234, mask34, mask134, mask14, mask1234 = createIntersectionMask(img_1,img_2,img_3,img_4)
+
 while True:
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
     occp_final = np.zeros((dim,dim),dtype=np.uint8)
@@ -211,53 +217,16 @@ while True:
     occp_final = occp_12+occp_23+occp_34+occp_14+occp_123+occp_234+occp_124+occp_134+occp_1234
     occp_final = occp_final.astype(np.float64)
     occp_final = carRemove(occp_final,headPos,trailerPos,headAngle,trailerAngle)
+    
+    store_occupancy 
+    if occp_final.shape[0] != 492:
+        occp_final = cv2.resize(occp_final,(492,492),cv2.INTER_NEAREST)
+    _, image = cv2.imencode('.png', occp_final)
 
+    sio = BytesIO()
+    np.save(sio, image)
+    value = sio.getvalue()
+    store_occupancy.set("occupancy_map_data", value)
+    image_id = os.urandom(8)
+    store_occupancy.set(image_id_key, image_id)
     
-    port_shape = (492,492)
-    center = int(port_shape[1]/2)
-    mask_width = 40.0
-    img_mask = np.ones((492,492,3),dtype=np.float64)
-    img_mask[:int(center+mask_width/2),:,:] = 0.0
-    mask_step = 1.0/mask_width
-    for j in range(int(mask_width)):
-        start_pos = int(center-mask_width/2)
-        img_mask[int(j+start_pos),:,:] = j*mask_step
-    img_mask = cv2.resize(img_mask,(dim,dim))
-    img_1 = img_1.astype(np.float64)
-    img_2 = img_2.astype(np.float64)
-    img_3 = img_3.astype(np.float64)
-    img_4 = img_4.astype(np.float64)
-    
-    img_1_masked = np.multiply(img_1,img_mask)
-    img_2_masked = np.multiply(img_2,img_mask)
-    img_3_masked = np.multiply(img_3,img_mask)
-    img_4_masked = np.multiply(img_4,img_mask)
-    
-    img_1_masked = img_1_masked.astype(np.uint8)
-    img_2_masked = img_2_masked.astype(np.uint8)
-    img_3_masked = img_3_masked.astype(np.uint8)
-    img_4_masked = img_4_masked.astype(np.uint8)
-    
-    img_2_masked = ndimage.rotate(img_2_masked,90)
-    img_3_masked = ndimage.rotate(img_3_masked,180)
-    img_4_masked = ndimage.rotate(img_4_masked,270)
-    
-    temp_img_1 = cv2.add(img_1_masked,img_3_masked)
-    temp_img_2 = cv2.add(img_2_masked,img_4_masked)
-    
-    img_final = cv2.addWeighted(temp_img_1,0.5,temp_img_2,0.5,0)
-    
-    img_save = np.concatenate((img_1.astype(np.uint8),img_final),axis=1)
-    img_save = np.concatenate((img_save,cv2.cvtColor(occp_final,cv2.COLOR_GRAY2BGR)),axis=1)
-    
-    cv2.imwrite("D:\\driveME\\test\\driveME_video_PNG\\occp\\"+str(i)+".png",img_save)
-    
-#    try:
-#        cv2.imshow("camera 1",img_1.astype(np.uint8))
-#        cv2.imshow("final occupancy",occp_final)
-#        cv2.imshow("raw image stitch",img_final)
-#        cv2.waitKey(0)
-#        cv2.destroyAllWindows() 
-#    except KeyboardInterrupt:
-#        cv2.destroyAllWindows()
-#        break
